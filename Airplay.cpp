@@ -4,17 +4,41 @@
 IMAGE img[5];
 IMAGE mask[5];
 
+// 动态生成掩码并处理原图背景
 void makeTransparent(IMAGE* src, IMAGE* maskImg)
 {
-    // 后续版本用于处理图片透明背景
+    DWORD* srcBuf = GetImageBuffer(src);
+    DWORD* maskBuf = GetImageBuffer(maskImg);
+    int n = src->getwidth() * src->getheight();
+
+    if (n <= 0)
+        return;
+
+    DWORD bg = srcBuf[0]; // 假设左上角第一个像素是背景色
+    int bgR = (bg >> 16) & 0xFF;
+    int bgG = (bg >> 8) & 0xFF;
+    int bgB = bg & 0xFF;
+
+    for (int i = 0; i < n; i++)
+    {
+        DWORD c = srcBuf[i];
+        int r = (c >> 16) & 0xFF;
+        int g = (c >> 8) & 0xFF;
+        int b = c & 0xFF;
+
+        if (abs(r - bgR) < 30 && abs(g - bgG) < 30 && abs(b - bgB) < 30)
+        {
+            maskBuf[i] = 0xFFFFFF;
+            srcBuf[i] = 0x000000;
+        }
+        else
+        {
+            maskBuf[i] = 0x000000;
+        }
+    }
 }
 
-void init()
-{
-    initgraph(bgWidth, bgHeight);
-    setbkmode(TRANSPARENT);
-}
-
+// 初始化我方飞机
 void initMyPlane(MyPlane* plane)
 {
     plane->x = (bgWidth - myairWidth) / 2;
@@ -23,6 +47,7 @@ void initMyPlane(MyPlane* plane)
     plane->alive = true;
 }
 
+// 控制我方飞机移动
 void moveMyPlane(MyPlane* plane)
 {
     if (GetAsyncKeyState(VK_UP) & 0x8000)
@@ -50,74 +75,17 @@ void moveMyPlane(MyPlane* plane)
     }
 }
 
+// 绘制我方飞机
 void drawMyPlane(MyPlane* plane)
 {
     if (plane->alive)
     {
-        rectangle(
-            plane->x,
-            plane->y,
-            plane->x + myairWidth,
-            plane->y + myairHeight
-        );
+        putimage(plane->x, plane->y, &mask[1], SRCAND);
+        putimage(plane->x, plane->y, &img[1], SRCPAINT);
     }
 }
 
-void fireBullet(MyPlane* plane, LL* bulletList, int* lastFireTime)
-{
-    if (GetAsyncKeyState(VK_SPACE) & 0x8000)
-    {
-        int currentTime = GetTickCount();
-
-        if (currentTime - *lastFireTime > 200)
-        {
-            int bulletX = plane->x + myairWidth / 2 - bulletWidth / 2;
-            int bulletY = plane->y - bulletHeight;
-
-            LinkList_insert(bulletList, bulletX, bulletY, 8);
-
-            *lastFireTime = currentTime;
-        }
-    }
-}
-
-void drawBullet(LL* bulletList)
-{
-    if (bulletList == NULL || bulletList->head == NULL)
-        return;
-
-    Node* temp = bulletList->head;
-
-    while (temp != NULL)
-    {
-        circle(temp->x, temp->y, bulletWidth / 2);
-        temp = temp->next;
-    }
-}
-
-void updateBullet(LL* bulletList)
-{
-    if (bulletList == NULL || bulletList->head == NULL)
-        return;
-
-    Node* temp = bulletList->head;
-    Node* next;
-
-    while (temp != NULL)
-    {
-        next = temp->next;
-
-        temp->y -= temp->speed;
-
-        if (temp->y < -bulletHeight)
-        {
-            LinkList_delete(bulletList, temp);
-        }
-
-        temp = next;
-    }
-}
-
+// 生成敌机
 void generateEnemy(LL* enemyList, int spawnRate, int minSpeed, int maxSpeed, bool spawnBigEnemy)
 {
     if (rand() % spawnRate == 0)
@@ -151,6 +119,7 @@ void generateEnemy(LL* enemyList, int spawnRate, int minSpeed, int maxSpeed, boo
     }
 }
 
+// 绘制敌机
 void drawEnemy(LL* enemyList)
 {
     if (enemyList == NULL || enemyList->head == NULL)
@@ -162,27 +131,20 @@ void drawEnemy(LL* enemyList)
     {
         if (temp->isBigEnemy)
         {
-            rectangle(
-                temp->x,
-                temp->y,
-                temp->x + bigEnemyWidth,
-                temp->y + bigEnemyHeight
-            );
+            putimage(temp->x, temp->y, &mask[4], SRCAND);
+            putimage(temp->x, temp->y, &img[4], SRCPAINT);
         }
         else
         {
-            rectangle(
-                temp->x,
-                temp->y,
-                temp->x + enemyWidth,
-                temp->y + enemyHeight
-            );
+            putimage(temp->x, temp->y, &mask[3], SRCAND);
+            putimage(temp->x, temp->y, &img[3], SRCPAINT);
         }
 
         temp = temp->next;
     }
 }
 
+// 更新敌机位置并删除越界敌机
 void updateEnemy(LL* enemyList)
 {
     if (enemyList == NULL || enemyList->head == NULL)
@@ -206,13 +168,73 @@ void updateEnemy(LL* enemyList)
     }
 }
 
+// 发射子弹
+void fireBullet(MyPlane* plane, LL* bulletList, int* lastFireTime)
+{
+    if (GetAsyncKeyState(VK_SPACE) & 0x8000)
+    {
+        int currentTime = GetTickCount();
+
+        if (currentTime - *lastFireTime > 200)
+        {
+            int bulletX = plane->x + myairWidth / 2 - bulletWidth / 2;
+            int bulletY = plane->y - bulletHeight;
+
+            LinkList_insert(bulletList, bulletX, bulletY, 8);
+
+            *lastFireTime = currentTime;
+        }
+    }
+}
+
+// 绘制子弹
+void drawBullet(LL* bulletList)
+{
+    if (bulletList == NULL || bulletList->head == NULL)
+        return;
+
+    Node* temp = bulletList->head;
+
+    while (temp != NULL)
+    {
+        putimage(temp->x, temp->y, &mask[2], SRCAND);
+        putimage(temp->x, temp->y, &img[2], SRCPAINT);
+
+        temp = temp->next;
+    }
+}
+
+// 更新子弹位置并删除越界子弹
+void updateBullet(LL* bulletList)
+{
+    if (bulletList == NULL || bulletList->head == NULL)
+        return;
+
+    Node* temp = bulletList->head;
+    Node* next;
+
+    while (temp != NULL)
+    {
+        next = temp->next;
+
+        temp->y -= temp->speed;
+
+        if (temp->y < -bulletHeight)
+        {
+            LinkList_delete(bulletList, temp);
+        }
+
+        temp = next;
+    }
+}
+
 // 矩形碰撞检测
 bool checkCollision(int x1, int y1, int w1, int h1, int x2, int y2, int w2, int h2)
 {
     return !(x1 > x2 + w2 || x1 + w1 < x2 || y1 > y2 + h2 || y1 + h1 < y2);
 }
 
-// 处理子弹与敌机、敌机与玩家飞机的碰撞
+// 处理碰撞
 void handleCollision(LL* bulletList, LL* enemyList, MyPlane* plane, int* score)
 {
     if (bulletList != NULL && bulletList->head != NULL && enemyList != NULL && enemyList->head != NULL)
@@ -308,8 +330,40 @@ void handleCollision(LL* bulletList, LL* enemyList, MyPlane* plane, int* score)
     }
 }
 
+// 初始化函数
+void init()
+{
+    setbkmode(TRANSPARENT);
+
+    loadimage(&img[0], "beijing.jpg", bgWidth, bgHeight);
+
+    loadimage(&img[1], "myplane.jpg", myairWidth, myairHeight);
+    loadimage(&mask[1], "myplane.jpg", myairWidth, myairHeight);
+    makeTransparent(&img[1], &mask[1]);
+
+    loadimage(&img[2], "bullet.jpg", bulletWidth, bulletHeight);
+    loadimage(&mask[2], "bullet.jpg", bulletWidth, bulletHeight);
+    makeTransparent(&img[2], &mask[2]);
+
+    loadimage(&img[3], "enemyplane.jpg", enemyWidth, enemyHeight);
+    loadimage(&mask[3], "enemyplane.jpg", enemyWidth, enemyHeight);
+    makeTransparent(&img[3], &mask[3]);
+
+    loadimage(&img[4], "bigenemy.jpg", bigEnemyWidth, bigEnemyHeight);
+    loadimage(&mask[4], "bigenemy.jpg", bigEnemyWidth, bigEnemyHeight);
+    makeTransparent(&img[4], &mask[4]);
+}
+
+void drawHUD(int score, int mode, int level, int timeLeft)
+{
+    char text[50];
+    snprintf(text, 50, "Score: %d", score);
+    outtextxy(10, 10, text);
+}
+
 void start()
 {
+    initgraph(bgWidth, bgHeight);
     init();
 
     MyPlane myPlane;
@@ -323,9 +377,11 @@ void start()
 
     srand((unsigned int)time(NULL));
 
+    BeginBatchDraw();
+
     while (myPlane.alive)
     {
-        cleardevice();
+        putimage(0, 0, &img[0]);
 
         moveMyPlane(&myPlane);
         fireBullet(&myPlane, bulletList, &lastFireTime);
@@ -342,14 +398,16 @@ void start()
         drawBullet(bulletList);
         drawEnemy(enemyList);
 
-        char text[50];
-        snprintf(text, 50, "Score: %d", score);
-        outtextxy(10, 10, text);
+        drawHUD(score, 1, 1, 0);
 
-        Sleep(20);
+        FlushBatchDraw();
+        Sleep(10);
     }
+
+    EndBatchDraw();
 
     LinkList_destroy(bulletList);
     LinkList_destroy(enemyList);
+
     closegraph();
 }
