@@ -6,7 +6,7 @@ IMAGE mask[5];
 
 void makeTransparent(IMAGE* src, IMAGE* maskImg)
 {
-    // 后续用于处理图片透明背景
+    // 后续版本用于处理图片透明背景
 }
 
 void init()
@@ -66,6 +66,64 @@ void drawMyPlane(MyPlane* plane)
     }
 }
 
+// 发射子弹
+void fireBullet(MyPlane* plane, LL* bulletList, int* lastFireTime)
+{
+    if (GetAsyncKeyState(VK_SPACE) & 0x8000)
+    {
+        int currentTime = GetTickCount();
+
+        if (currentTime - *lastFireTime > 200)
+        {
+            int bulletX = plane->x + myairWidth / 2 - bulletWidth / 2;
+            int bulletY = plane->y - bulletHeight;
+
+            LinkList_insert(bulletList, bulletX, bulletY, 8);
+
+            *lastFireTime = currentTime;
+        }
+    }
+}
+
+// 绘制子弹
+void drawBullet(LL* bulletList)
+{
+    if (bulletList == NULL || bulletList->head == NULL)
+        return;
+
+    Node* temp = bulletList->head;
+
+    while (temp != NULL)
+    {
+        circle(temp->x, temp->y, bulletWidth / 2);
+        temp = temp->next;
+    }
+}
+
+// 更新子弹位置，并删除飞出屏幕的子弹
+void updateBullet(LL* bulletList)
+{
+    if (bulletList == NULL || bulletList->head == NULL)
+        return;
+
+    Node* temp = bulletList->head;
+    Node* next;
+
+    while (temp != NULL)
+    {
+        next = temp->next;
+
+        temp->y -= temp->speed;
+
+        if (temp->y < -bulletHeight)
+        {
+            LinkList_delete(bulletList, temp);
+        }
+
+        temp = next;
+    }
+}
+
 void start()
 {
     init();
@@ -73,15 +131,24 @@ void start()
     MyPlane myPlane;
     initMyPlane(&myPlane);
 
+    LL* bulletList = LinkList_init();
+    int lastFireTime = 0;
+
     while (myPlane.alive)
     {
         cleardevice();
 
         moveMyPlane(&myPlane);
+        fireBullet(&myPlane, bulletList, &lastFireTime);
+
+        updateBullet(bulletList);
+
         drawMyPlane(&myPlane);
+        drawBullet(bulletList);
 
         Sleep(20);
     }
 
+    LinkList_destroy(bulletList);
     closegraph();
 }
