@@ -118,7 +118,6 @@ void updateBullet(LL* bulletList)
     }
 }
 
-// 生成敌机
 void generateEnemy(LL* enemyList, int spawnRate, int minSpeed, int maxSpeed, bool spawnBigEnemy)
 {
     if (rand() % spawnRate == 0)
@@ -152,7 +151,6 @@ void generateEnemy(LL* enemyList, int spawnRate, int minSpeed, int maxSpeed, boo
     }
 }
 
-// 绘制敌机
 void drawEnemy(LL* enemyList)
 {
     if (enemyList == NULL || enemyList->head == NULL)
@@ -185,7 +183,6 @@ void drawEnemy(LL* enemyList)
     }
 }
 
-// 更新敌机位置，并删除飞出屏幕的敌机
 void updateEnemy(LL* enemyList)
 {
     if (enemyList == NULL || enemyList->head == NULL)
@@ -209,6 +206,108 @@ void updateEnemy(LL* enemyList)
     }
 }
 
+// 矩形碰撞检测
+bool checkCollision(int x1, int y1, int w1, int h1, int x2, int y2, int w2, int h2)
+{
+    return !(x1 > x2 + w2 || x1 + w1 < x2 || y1 > y2 + h2 || y1 + h1 < y2);
+}
+
+// 处理子弹与敌机、敌机与玩家飞机的碰撞
+void handleCollision(LL* bulletList, LL* enemyList, MyPlane* plane, int* score)
+{
+    if (bulletList != NULL && bulletList->head != NULL && enemyList != NULL && enemyList->head != NULL)
+    {
+        Node* bullet = bulletList->head;
+        Node* bulletNext;
+
+        while (bullet != NULL)
+        {
+            bulletNext = bullet->next;
+
+            Node* enemy = enemyList->head;
+            Node* enemyNext;
+
+            while (enemy != NULL)
+            {
+                enemyNext = enemy->next;
+
+                int currentEnemyWidth = enemy->isBigEnemy ? bigEnemyWidth : enemyWidth;
+                int currentEnemyHeight = enemy->isBigEnemy ? bigEnemyHeight : enemyHeight;
+
+                if (checkCollision(
+                    bullet->x,
+                    bullet->y,
+                    bulletWidth,
+                    bulletHeight,
+                    enemy->x,
+                    enemy->y,
+                    currentEnemyWidth,
+                    currentEnemyHeight
+                ))
+                {
+                    LinkList_delete(bulletList, bullet);
+
+                    enemy->life--;
+
+                    if (enemy->life <= 0)
+                    {
+                        bool isBigEnemy = enemy->isBigEnemy;
+
+                        LinkList_delete(enemyList, enemy);
+
+                        if (isBigEnemy)
+                        {
+                            (*score) += 50;
+                        }
+                        else
+                        {
+                            (*score) += 10;
+                        }
+                    }
+
+                    break;
+                }
+
+                enemy = enemyNext;
+            }
+
+            bullet = bulletNext;
+        }
+    }
+
+    if (plane->alive && enemyList != NULL && enemyList->head != NULL)
+    {
+        Node* enemy = enemyList->head;
+        Node* enemyNext;
+
+        while (enemy != NULL)
+        {
+            enemyNext = enemy->next;
+
+            int currentEnemyWidth = enemy->isBigEnemy ? bigEnemyWidth : enemyWidth;
+            int currentEnemyHeight = enemy->isBigEnemy ? bigEnemyHeight : enemyHeight;
+
+            if (checkCollision(
+                plane->x,
+                plane->y,
+                myairWidth,
+                myairHeight,
+                enemy->x,
+                enemy->y,
+                currentEnemyWidth,
+                currentEnemyHeight
+            ))
+            {
+                plane->alive = false;
+                LinkList_delete(enemyList, enemy);
+                break;
+            }
+
+            enemy = enemyNext;
+        }
+    }
+}
+
 void start()
 {
     init();
@@ -219,6 +318,7 @@ void start()
     LL* bulletList = LinkList_init();
     LL* enemyList = LinkList_init();
 
+    int score = 0;
     int lastFireTime = 0;
 
     srand((unsigned int)time(NULL));
@@ -230,14 +330,21 @@ void start()
         moveMyPlane(&myPlane);
         fireBullet(&myPlane, bulletList, &lastFireTime);
 
-        generateEnemy(enemyList, 50, 2, 4, false);
+        bool spawnBigEnemy = (score >= 100);
+        generateEnemy(enemyList, 50, 2, 4, spawnBigEnemy);
 
         updateBullet(bulletList);
         updateEnemy(enemyList);
 
+        handleCollision(bulletList, enemyList, &myPlane, &score);
+
         drawMyPlane(&myPlane);
         drawBullet(bulletList);
         drawEnemy(enemyList);
+
+        char text[50];
+        snprintf(text, 50, "Score: %d", score);
+        outtextxy(10, 10, text);
 
         Sleep(20);
     }
