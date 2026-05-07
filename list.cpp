@@ -9,6 +9,8 @@ Node* Node_init(int x, int y, int speed)
     temp->x = x;
     temp->y = y;
     temp->speed = speed;
+    temp->life = 1;
+    temp->isBigEnemy = false;
     temp->next = NULL;
 
     return temp;
